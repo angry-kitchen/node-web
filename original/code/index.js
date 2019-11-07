@@ -94,7 +94,7 @@ const requestListener = (req, res) => {
     }
 }
 
-app.listen = (port, hostname) => {
+app.server = (port, hostname) => {
     http.createServer(requestListener).listen(port, hostname);
 }
 

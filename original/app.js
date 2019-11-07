@@ -25,6 +25,6 @@ const getUser = function (req, res) {
 
 app.post('/user/:username', addUser);
 app.get('/user/:username', getUser);
-app.listen(PORT, HOST);
+app.server(PORT, HOST);
 
 console.log(`服务运行： http://${HOST}:${PORT}/`)
