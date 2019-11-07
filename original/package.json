@@ -1,0 +1,9 @@
+{
+  "name": "original",
+  "version": "1.0.0",
+  "main": "app.js",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.19.0"
+  }
+}

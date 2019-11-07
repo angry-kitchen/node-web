@@ -1,75 +1,101 @@
 const http = require('http')
 const url = require('url')
 const { pathRegexp } = require('./util')
+const { resJSON, querystring } = require('./middleware')
+const bodyParser = require('body-parser')
 
 const routes = { all: [] };
 const app = {};
 
-app.use = function (path, action) {
-    routes.all.push([pathRegexp(path), action])
+app.use = function(path) {
+    let handle;
+    if (typeof path === 'string') {
+        handle = {
+            path: pathRegexp(path),
+            stack: Array.prototype.slice.call(arguments, 1)
+        };
+    } else {
+        handle = {
+            path: pathRegexp(),
+            stack: Array.prototype.slice.call(arguments, 0)
+        }
+    }
+    routes.all.push(handle)
 }
 
 const methods = ['get', 'put', 'delete', 'post']
 methods.forEach(method => {
     routes[method] = [];
-    app[method] = function (path, action) {
-        routes[method].push([pathRegexp(path), action]);
+    app[method] = (path, action) => {
+        const handle = {
+            path: pathRegexp(path),
+            stack: action
+        };
+        routes[method].push(handle);
     };
 });
 
-const matchPath = (req, res) => (pathname, routes) => {
-    for (let i = 0; i < routes.length; i++) {
-        const route = routes[i];
-        const reg = route[0].regexp;
-        const keys = route[0].keys;
-        const matched = reg.exec(pathname);
-        if (matched) {
-            let params = {};
-            for (let i = 0, l = keys.length; i < l; i++) {
-                const value = matched[i + 1]; 
-                if (value) {
-                    params[keys[i]] = value;
-                }
+const handle = (req, res, stack) => {
+    const next = (err) => {
+        if (err) {
+            return handle500(err, req, res, stack)
+        }
+        const middleware = stack.shift();
+        if (middleware) {
+            // 传入next()函数自s身，使中间件能够执行结束后递归
+            try {
+                middleware(req, res, next)
+            } catch (error) {
+                next(error)
             }
-            req.params = params;
-            const action = route[1]; 
-            action(req, res); 
-            return true;
         }
     }
-    return false;
+
+    next();
 }
 
-const resJSON = function (res, json) {
-    res.setHeader('Content-Type', 'application/json'); 
-    res.writeHead(200);
-    res.end(JSON.stringify(json));
-}
+app.use(resJSON);
+app.use(bodyParser.json())
+app.use(querystring);
 
-const handle = function (req, res) {
+const requestListener = (req, res) => {
+    const match = (pathname, routes) => {
+        let stacks = [];
+        for (let i = 0; i < routes.length; i++) {
+            const route = routes[i];
+            const reg = route.path.regexp;
+            const keys = route.path.keys;
+            const matched = reg.exec(pathname);
+            if (matched) {
+                const params = {};
+                for (let i = 0, l = keys.length; i < l; i++) {
+                    const value = matched[i + 1];
+                    if (value) {
+                        params[keys[i]] = value; 
+                    }
+                }
+                req.params = params;
+                stacks = stacks.concat(route.stack)
+            }
+        }
+        return stacks;
+    }
     const pathname = url.parse(req.url).pathname;
     const method = req.method.toLowerCase();
-    const match = matchPath(req, res)
-    res.json = json => resJSON(res)
-    const route = Object.hasOwnProperty.call(routes, method) ? routes[method] : routes.all
+    let stacks = match(pathname, routes.all);
     if (Object.hasOwnProperty.call(routes, method)) {
-        if (match(pathname, routes[method])) {
-            return; 
-        } else {
-            if (match(pathname, routes.all)) {
-                return; 
-            }
-        }
-    } else {
-        if (match(pathname, routes.all)) {
-            return; 
-        }
+        stacks = stacks.concat(match(pathname, routes[method]));
     }
-    handle404(req. res);
+
+    if (stacks.length) {
+        handle(req, res, stacks);
+    } else {
+        handle404(req. res);
+    }
 }
 
-app.listen = function (port, hostname) {
-    http.createServer(handle).listen(port, hostname);
+app.listen = (port, hostname) => {
+    http.createServer(requestListener).listen(port, hostname);
 }
 
 exports.app = app
