@@ -1,0 +1,14 @@
+{
+  "name": "nodeweb",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "serve": "nodeppt serve site/index.md",
+    "build": "nodeppt build site/index.md"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "nodeppt": "^2.1.8"
+  }
+}
